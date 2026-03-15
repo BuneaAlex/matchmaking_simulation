@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: matchmaking_simulation
+  datasource:
+      url: jdbc:postgresql://localhost:5432/matchmaking
+      username: postgres
+      password: postgres
+      driver-class-name: org.postgresql.Driver
+  jpa:
+    generate-ddl: true
+    hibernate:
+      ddl-auto: update
