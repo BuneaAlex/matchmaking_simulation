@@ -1,7 +1,5 @@
 package com.master.matchmaking.model.simulation;
 
-import org.springframework.stereotype.Component;
-
 /**
  * Holds the three weights used by all matchmaking algorithms.
  * <p>
@@ -38,6 +36,23 @@ public record AlgorithmWeights(
                String.format( "Weights must sum to 1.0, but got %.3f (skill=%.2f, latency=%.2f, waitTime=%.2f)",
                      sum, weightSkill, weightLatency, weightWaitTime ) );
       }
+   }
+
+   public int getWeightSkill()
+   {
+      return (int) (weightSkill * 100);
+   }
+
+
+   public int getWeightWaitTime()
+   {
+      return (int) (weightWaitTime * 100);
+   }
+
+
+   public int getWeightLatency()
+   {
+      return (int) (weightLatency * 100);
    }
 
    @Override
