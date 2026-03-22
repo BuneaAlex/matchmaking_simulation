@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/reports")
@@ -55,5 +56,11 @@ public class SimulationReportController {
         }
     }
 
+
+    @DeleteMapping
+    public void deleteReport(@RequestParam UUID id)
+    {
+        service.deleteReport(id);
+    }
 }
 

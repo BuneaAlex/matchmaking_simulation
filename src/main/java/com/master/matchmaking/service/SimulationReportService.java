@@ -24,6 +24,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @AllArgsConstructor
@@ -105,6 +106,12 @@ public class SimulationReportService {
 
     public List<SimulationReportEntity> findByMultipleFilters(LocalDate date, GameModeType gameModeType) {
         return repository.findByMatchesDateAndGameModeType(date, gameModeType);
+    }
+
+
+    public void deleteReport(final UUID id)
+    {
+        repository.deleteById(id);
     }
 
     private MatchmakingAlgorithm getAlgorithm(AlgorithmType type, AlgorithmWeights weights) {
