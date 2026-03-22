@@ -37,50 +37,58 @@ public class SimulationReportService {
     @Transactional
     public SimulationReportEntity generateReport(final ReportRequestDTO reportRequestDTO) throws ReportGenerationException {
 
-        AlgorithmWeights weights = new AlgorithmWeights(reportRequestDTO.skillWeight(), reportRequestDTO.latencyWeight(), reportRequestDTO.waitTimeWeight());
+        try {
 
-        Optional<SimulationReportEntity> simulationReportOptional = repository.findByGameModeTypeAndMatchesDateAndSkillWeightAndWaitTimeWeightAndLatencyWeight(reportRequestDTO.gameModeType(), reportRequestDTO.date(), weights.getWeightSkill(), weights.getWeightWaitTime(), weights.getWeightLatency());
+            AlgorithmWeights weights = new AlgorithmWeights(reportRequestDTO.skillWeight(), reportRequestDTO.latencyWeight(), reportRequestDTO.waitTimeWeight());
 
-        if (simulationReportOptional.isPresent()) {
-            return simulationReportOptional.get();
+            Optional<SimulationReportEntity> simulationReportOptional = repository.findByGameModeTypeAndMatchesDateAndSkillWeightAndWaitTimeWeightAndLatencyWeight(reportRequestDTO.gameModeType(), reportRequestDTO.date(), weights.getWeightSkill(), weights.getWeightWaitTime(), weights.getWeightLatency());
+
+            //TODO: maybe add logs in the code
+            if (simulationReportOptional.isPresent()) {
+                return simulationReportOptional.get();
+            }
+
+            final Optional<GameModeEntity> gameModeEntityOptional = gameModeRepository.findByType(reportRequestDTO.gameModeType());
+
+            if (gameModeEntityOptional.isPresent()) {
+                GameModeEntity gameModeEntity = gameModeEntityOptional.get();
+                final List<QueueRequestEntity> queueRequests = queueRequestRepository.findByGameModeAndDayOfTheRequest(gameModeEntity, reportRequestDTO.date());
+
+                MatchmakingAlgorithmEntity matchmakingAlgorithm = gameModeEntity.getMatchmakingAlgorithm();
+                final SimulationEngine simulationEngine = new SimulationEngine(queueRequests, getAlgorithm(matchmakingAlgorithm.getName(), weights));
+
+                simulationEngine.run();
+
+                SimulationStatistics stats = new SimulationStatistics(
+                        simulationEngine.getMatches(),
+                        simulationEngine.getAbandonedRequests(),
+                        queueRequests.size());
+
+                final SimulationReportEntity simulationReport = SimulationReportEntity.builder() //
+                        .gameModeType(gameModeEntity.getType())
+                        .matchmakingAlgorithmName(matchmakingAlgorithm.getName())
+                        .matchesDate(reportRequestDTO.date())
+                        .skillWeight(weights.getWeightSkill())
+                        .waitTimeWeight(weights.getWeightWaitTime())
+                        .latencyWeight(weights.getWeightLatency())
+                        .totalQueueRequests(queueRequests.size())
+                        .totalMatches(stats.totalMatches())
+                        .abandonedMatchesRate(stats.totalAbandoned() + " - " + stats.abandonRate() + "%")
+                        .averageMatchQuality(stats.matchQualityStats())
+                        .waitTimeStatistics(buildWaitTimeStatistics(stats))
+                        .skillStatistics(buildSkillStatistics(stats))
+                        .latencyStatistics(buildLatencyStatistics(stats))
+                        .build();
+
+                return repository.save(simulationReport);
+            }
+            else
+            {
+                throw new ReportGenerationException("Game mode type not found");
+            }
+        } catch (final Exception e) {
+            throw new ReportGenerationException(e.getMessage());
         }
-
-        final Optional<GameModeEntity> gameModeEntityOptional = gameModeRepository.findByType(reportRequestDTO.gameModeType());
-
-        if (gameModeEntityOptional.isPresent()) {
-            GameModeEntity gameModeEntity = gameModeEntityOptional.get();
-            final List<QueueRequestEntity> queueRequests = queueRequestRepository.findByGameModeAndDayOfTheRequest(gameModeEntity, reportRequestDTO.date());
-
-            MatchmakingAlgorithmEntity matchmakingAlgorithm = gameModeEntity.getMatchmakingAlgorithm();
-            final SimulationEngine simulationEngine = new SimulationEngine(queueRequests, getAlgorithm(matchmakingAlgorithm.getName(), weights));
-
-            simulationEngine.run();
-
-            SimulationStatistics stats = new SimulationStatistics(
-                    simulationEngine.getMatches(),
-                    simulationEngine.getAbandonedRequests(),
-                    queueRequests.size());
-
-            final SimulationReportEntity simulationReport = SimulationReportEntity.builder() //
-                    .gameModeType(gameModeEntity.getType())
-                    .matchmakingAlgorithmName(matchmakingAlgorithm.getName())
-                    .matchesDate(reportRequestDTO.date())
-                    .skillWeight(weights.getWeightSkill())
-                    .waitTimeWeight(weights.getWeightWaitTime())
-                    .latencyWeight(weights.getWeightLatency())
-                    .totalQueueRequests(queueRequests.size())
-                    .totalMatches(stats.totalMatches())
-                    .abandonedMatchesRate(stats.totalAbandoned() + " - " + stats.abandonRate() + "%")
-                    .averageMatchQuality(stats.matchQualityStats())
-                    .waitTimeStatistics(buildWaitTimeStatistics(stats))
-                    .skillStatistics(buildSkillStatistics(stats))
-                    .latencyStatistics(buildLatencyStatistics(stats))
-                    .build();
-
-            return repository.save(simulationReport);
-        }
-
-        throw new ReportGenerationException("Game mode type not found");
     }
 
     public List<SimulationReportEntity> findAll() {
