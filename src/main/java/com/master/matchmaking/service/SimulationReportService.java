@@ -74,7 +74,7 @@ public class SimulationReportService {
                         .latencyWeight(weights.getWeightLatency())
                         .totalQueueRequests(queueRequests.size())
                         .totalMatches(stats.totalMatches())
-                        .abandonedMatchesRate(stats.totalAbandoned() + " - " + stats.abandonRate() + "%")
+                        .abandonedMatchesRate(stats.totalAbandoned() + " - " + String.format("%.4f", stats.abandonRate()) + "%")
                         .averageMatchQuality(stats.matchQualityStats())
                         .waitTimeStatistics(buildWaitTimeStatistics(stats))
                         .skillStatistics(buildSkillStatistics(stats))
@@ -82,9 +82,7 @@ public class SimulationReportService {
                         .build();
 
                 return repository.save(simulationReport);
-            }
-            else
-            {
+            } else {
                 throw new ReportGenerationException("Game mode type not found");
             }
         } catch (final Exception e) {
@@ -109,8 +107,7 @@ public class SimulationReportService {
     }
 
 
-    public void deleteReport(final UUID id)
-    {
+    public void deleteReport(final UUID id) {
         repository.deleteById(id);
     }
 
