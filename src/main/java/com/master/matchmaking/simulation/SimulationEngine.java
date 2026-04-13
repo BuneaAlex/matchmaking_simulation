@@ -45,8 +45,9 @@ public class SimulationEngine {
         this.abandonedRequests = new ArrayList<>();
     }
 
-    public SimulationEngine(List<QueueRequestEntity> allRequests, MatchmakingAlgorithm algorithm) {
-        this(allRequests, algorithm, 5); // default: tick every 5 seconds
+    public SimulationEngine( List<QueueRequestEntity> allRequests, MatchmakingAlgorithm algorithm )
+    {
+        this( allRequests, algorithm, algorithm.tickIntervalSeconds() );
     }
 
     /**

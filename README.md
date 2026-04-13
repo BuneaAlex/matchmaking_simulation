@@ -227,6 +227,102 @@ Selecting an existing file loads it directly; selecting option 1 prompts for a d
 
 ## 3. Algorithm-Specific Notes
 
+### Skill-Based (SBMM) Algorithm — Bracket-and-Rank Matching
+
+The Skill-Based algorithm is a **ranked-mode** matchmaker modelled after real-world ELO / MMR systems. Match quality takes strict priority over speed: players with vastly different skill ratings are **never** matched — they wait longer instead.
+
+#### How it works
+
+1. **Sort by skill** — the queue is sorted by skill rating so similar players are adjacent.
+2. **Skill gate** — each player can only match with another whose skill diff is within a tight *search range* controlled by the skill weight. A hard cap prevents extreme mismatches regardless of configuration.
+3. **Latency gate** — among skill-eligible candidates, a *latency ceiling* filters out high-latency pairs. The ceiling is controlled by the latency weight.
+4. **Weighted scoring** — all pairs passing both gates are scored with a composite formula. Skill diff is normalized against the *search range* (not the full 0–1000 range), giving latency and wait-time weights real influence among similarly-skilled candidates.
+5. **Greedy global assignment** — pairs are sorted by score (best first) and greedily assigned.
+
+#### Search range (ranked-mode skill brackets)
+
+The skill weight controls the search range — the maximum skill diff the algorithm will consider:
+
+```
+searchRange = TIGHT_RANGE + (LOOSE_RANGE − TIGHT_RANGE)
+            × (MAX_SKILL_WEIGHT − skillWeight) / (MAX_SKILL_WEIGHT − MIN_SKILL_WEIGHT)
+```
+
+| Skill Weight | Search Range | Interpretation |
+|---|---|---|
+| 80 % | 75 pts | Same division only — very tight matches |
+| 70 % | 100 pts | Adjacent division — default |
+| 60 % | 125 pts | 1–2 divisions apart |
+| 50 % | 150 pts | Maximum — still within "decent" range |
+
+#### Hard skill cap
+
+No match may **ever** exceed 150 skill diff under normal conditions. This structurally guarantees:
+
+- **Skill > 250 %: always 0 %** — severe mismatches are impossible
+- **Skill 151–250 %: always 0 %** — cross-division mismatches are blocked
+
+For players waiting longer than 30 seconds, the cap slowly expands toward 200 to prevent permanent starvation:
+
+```
+skillCap(waitSec) = 150 + 50 × (1 − e^(−waitSec / 120))
+```
+
+| Wait Time | Effective Cap | Notes |
+|---|---|---|
+| 0–10 s | 150 | Standard — no 151+ matches |
+| 30 s | ≈ 162 | Barely opened |
+| 60 s | ≈ 174 | Moderate |
+| 120 s | ≈ 187 | Long-waiter relief |
+
+Even at maximum expansion, the cap never reaches 250, so the "> 250" bucket is always 0 %.
+
+#### Latency ceiling
+
+A tight, gaming-realistic ceiling derived linearly from the latency weight:
+
+```
+baseCeiling = 150 − (latencyWeight − 0.10) / 0.20 × 100
+```
+
+| Latency Weight | Base Ceiling | Effect |
+|---|---|---|
+| 10 % | 150 ms | Allows cross-region freely |
+| 15 % | 125 ms | Blocks worst cross-continent |
+| 20 % | 100 ms | Prefers same-continent |
+| 30 % | 50 ms | Forces same-region — dramatic latency improvement |
+
+The ceiling expands asymptotically as a player waits (decay rate 120 s), so long-waiters are not permanently stuck by the gate.
+
+#### Within-bracket scoring
+
+Among candidates passing both gates, a weighted composite score ranks pairs (lower = better):
+
+```
+score = weightSkill   × (skillDiff / searchRange)
+      + weightLatency × (latency / 300)
+      − weightWait    × ((waitA + waitB) / 120)
+```
+
+The key insight: skill diff is normalized against the **search range** (75–150 pts), not the full 1000-point range. This means a 50-point diff in a 100-point bracket = 0.50 (significant), not 0.05 (negligible). This gives the latency and wait-time terms real leverage in determining which candidate wins within a bracket.
+
+#### Observed behaviour
+
+| Config | AvgSkillDiff | SkillQ | LatQ | MatchQ | Skill >150 |
+|---|---|---|---|---|---|
+| 80/10/10 | 23 | 90 | 39 | 73 | 0 % |
+| 70/15/15 | 28 | 88 | 39 | 73 | 0 % |
+| 60/20/20 | 33 | 86 | 41 | 72 | 0 % |
+| 50/30/20 | 45 | 81 | **58** | **75** | 0 % |
+| 50/20/30 | 37 | 85 | 41 | 72 | 0 % |
+
+- Skill weight clearly differentiates: 80 % → AvgSkillDiff 23 vs 50 % → 45
+- Latency weight produces visible jumps: 30 % latency (50/30/20) achieves LatQ 58 vs 39 at 10 %
+- Wait-time weight controls speed: 30 % wait (50/20/30) has AvgWait 4.7 s vs 8.3 s for 50/30/20
+- Skill > 250 and 151–250 are **always 0 %** — ranked integrity is guaranteed
+
+---
+
 ### Latency-Based Algorithm — Inherent Limitation
 
 A latency-based matchmaking algorithm **cannot improve a player's individual connection quality**. Each player enters the queue with a fixed base latency determined by their internet connection and physical distance to the game server. The algorithm can only **avoid making it worse** by minimising the cross-region penalty — i.e. by preferring to match players within the same continent / sub-region.
@@ -241,15 +337,15 @@ To capture this distinction, the simulation reports two complementary latency me
 The latency quality score uses a **hybrid** system with two components:
 
 1. **Region tier (0–70 points)** — based on the cross-region penalty (the avoidable part of the latency):
-    - Same region → penalty 0 ms → **70 points**
-    - Same continent, different sub-region → penalty 1–10 ms → **50 points**
-    - Cross-continent nearby (e.g. EU↔NA) → penalty 11–30 ms → **20 points**
-    - Cross-continent far (e.g. EU↔ASIA, NA↔ASIA) → penalty > 30 ms → **0 points**
+   - Same region → penalty 0 ms → **70 points**
+   - Same continent, different sub-region → penalty 1–10 ms → **50 points**
+   - Cross-continent nearby (e.g. EU↔NA) → penalty 11–30 ms → **20 points**
+   - Cross-continent far (e.g. EU↔ASIA, NA↔ASIA) → penalty > 30 ms → **0 points**
 
 2. **Latency similarity bonus (0–30 points)** — based on how close the two players' base latencies are:
-    - Difference 0 ms → **30 points** (identical connection quality)
-    - Difference 40 ms → **15 points**
-    - Difference ≥ 80 ms → **0 points**
+   - Difference 0 ms → **30 points** (identical connection quality)
+   - Difference 40 ms → **15 points**
+   - Difference ≥ 80 ms → **0 points**
 
    This rewards the algorithm for pairing players with similar connection quality (e.g. 30 ms + 35 ms scores higher than 10 ms + 50 ms, even though both are same-region).
 
@@ -274,4 +370,83 @@ crossContinentHoldSeconds = (int)(latencyWeight × 30)
 | 50 % | ~15 s | Loose — falls back to cross-continent matching quickly |
 
 Players who have not yet reached the hold threshold remain in their continent bucket and are retried on subsequent ticks. Once the threshold is crossed, they enter the cross-continent fallback pool where they can be matched with players from any continent.
+
+---
+
+### Short Wait-Time Algorithm — Hold-and-Pick Matching
+
+The Short Wait-Time algorithm uses a **hold-and-pick** strategy with tolerance gates: every player must wait a minimum *hold time* before becoming eligible for matching. Once eligible, only pairs passing through skill and latency tolerance gates are scored, and the globally best pair is matched first.
+
+#### Why this approach
+
+With large player pools (20k–100k), scoring-weight-only approaches produce identical results across different weight configurations because the pool is so dense that perfect matches always exist instantly. The hold timer is a **structural mechanism** — like the Latency-Based algorithm's geographic bucketing — that forces different behaviour by controlling *when* players become matchable, not just *how* they're scored. The tolerance gates provide a second lever: controlling *who* can match, not just when.
+
+#### Tick interval
+
+The algorithm runs at **1-second ticks** (other algorithms default to 5 s). This preserves fine-grained wait-time resolution so that small hold-time differences (e.g. 2.2 s vs 0 s) produce measurably different outcomes.
+
+#### Hold time formula
+
+The wait-time weight directly controls how long players are held before becoming eligible. A **power curve** (`p^0.6`) is used instead of linear interpolation to spread out the high-wait-weight end (70 % vs 80 %) where linear would compress them:
+
+```
+p           = (1 − waitTimeWeight) / (1 − MIN_WAIT_WEIGHT)
+holdSeconds = MAX_HOLD × p^0.6
+```
+
+Where `MAX_HOLD = 4 s` and `MIN_WAIT_WEIGHT = 0.50`.
+
+| Wait Weight | Hold Time | Effect |
+|---|---|---|
+| 50 % | 4.0 s | Maximum quality accumulation — many candidates in pool before matching |
+| 60 % | 3.1 s | Moderate hold — good balance |
+| 70 % | 2.2 s | Short hold — biased towards speed |
+| 80 % | 0.0 s | No hold — instant matching, lowest quality |
+
+#### Tolerance gates with amplified sensitivity
+
+Before scoring, each candidate pair must pass both a skill and a latency gate. The gates use the **stricter of both players' expanding tolerance windows**. To make even small weight differences (e.g. 10 % vs 15 %) produce noticeably different gate widths, the algorithm uses `sqrt(weight)` instead of linear weight:
+
+```
+effectiveWeight = sqrt(weight)
+initial         = maxRange × (1 − effectiveWeight)
+extra           = maxRange × effectiveWeight × (1 − e^(−waitSec / 30))
+tolerance       = initial + extra
+```
+
+| Weight | Effective | Initial gate (fraction of max range) |
+|---|---|---|
+| 10 % | 31.6 % | 68.4 % open |
+| 15 % | 38.7 % | 61.3 % open |
+| 25 % | 50.0 % | 50.0 % open |
+| 40 % | 63.2 % | 36.8 % open |
+
+The decay rate is 30 s (faster than the shared 60 s default) so that gates open quickly and players are not stuck waiting for candidates.
+
+#### Scoring formula
+
+Among candidates passing both gates, a weighted composite score ranks pairs (lower = better):
+
+```
+score = weightSkill   × (skillDiff / 1000)
+      + weightLatency × (latency / 300)
+      − weightWait    × ((waitA + waitB) / 120)
+```
+
+Components are normalized against the full fixed ranges (1000 for skill, 300 for latency) so that a weight change always produces a proportional score shift.
+
+#### How it works (summary)
+
+1. **Hold phase:** Players who have waited less than `holdSeconds` are *not eligible* this tick.
+2. **Tolerance gates:** Among eligible players, only pairs within both players' skill and latency tolerance windows are considered. The gates use `sqrt(weight)` amplification and the stricter of both players' windows.
+3. **Pair scoring:** Surviving pairs are scored with the weighted composite formula.
+4. **Global greedy assignment:** Pairs are sorted by score (best first) and greedily assigned.
+
+#### Why the hold timer + gates create weight sensitivity
+
+- At **80 % wait weight** (hold = 0 s): players match the instant they arrive. The pool is tiny each tick (1–2 players), so the algorithm has almost no choice — it pairs whoever is there. Quality is low.
+- At **60 % wait weight** (hold = 3.1 s): players accumulate for ~3 seconds. With ~1.2 arrivals/sec (100k pool), ~4 candidates are available. The scoring weights now have multiple candidates to rank, and the tolerance gates filter out poor matches.
+- At **50 % wait weight** (hold = 4.0 s): ~5 candidates accumulate. The algorithm has a large enough pool to find genuinely good matches, at the cost of everyone waiting ~4+ seconds.
+
+The scoring weights (skill vs. latency) control *which* quality dimension is prioritised among the accumulated candidates. The tolerance gates (controlled by the same weights) control *who* enters the scoring at all. The wait-time weight controls *how many* candidates accumulate via the hold timer.
 
