@@ -152,11 +152,11 @@ When two players are matched from different regions, an additive latency penalty
 Base latency (before cross-region penalty) follows a **weighted bucket distribution** designed to mirror realistic internet conditions:
 
 | Quality | Latency Range | Probability | Interpretation |
-|---|---|---|---|
-| Excellent | 20 – 30 ms | 30 % | Very good internet / same datacenter region |
-| Good | 30 – 60 ms | 40 % | Typical regional connection (majority) |
-| Playable | 60 – 100 ms | 25 % | Cross-region but still playable |
-| Bad | 100 – 180 ms | 5 % | Poor internet or distant routing (minority) |
+|---|---------------|-------------|---|
+| Excellent | 10 – 30 ms    | 40 %        | Very good internet / same datacenter region |
+| Good | 30 – 60 ms    | 30 %        | Typical regional connection (majority) |
+| Playable | 60 – 100 ms   | 25 %        | Cross-region but still playable |
+| Bad | 100 – 180 ms  | 5 %         | Poor internet or distant routing (minority) |
 
 Within each bucket the value is drawn uniformly.
 

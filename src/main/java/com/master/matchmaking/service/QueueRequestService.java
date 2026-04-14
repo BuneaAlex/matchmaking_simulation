@@ -104,7 +104,7 @@ public class QueueRequestService
    private static int generateLatency( Random random )
    {
       double r = random.nextDouble();
-      if ( r < 0.30 ) return 20 + random.nextInt( 11 );
+      if ( r < 0.40 ) return 10 + random.nextInt( 11 );
       else if ( r < 0.70 ) return 30 + random.nextInt( 31 );
       else if ( r < 0.95 ) return 60 + random.nextInt( 41 );
       else return 100 + random.nextInt( 81 );

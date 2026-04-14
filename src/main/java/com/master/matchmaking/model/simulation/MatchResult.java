@@ -51,25 +51,36 @@ public record MatchResult(
     }
 
     /**
-     * Latency quality score [0 .. 100]. Measures <b>how well the algorithm matched
-     * players by region and latency similarity</b>, not their absolute connection quality.
+     * Latency quality score [0 .. 100].
+     * <p>
+     * Measures <b>how good the match is from a networking perspective</b>,
+     * prioritizing regional proximity and overall playability.
      * <p>
      * The score is composed of two parts:
      * <ol>
-     *   <li><b>Region tier (0 – 70 points)</b> — based on the cross-region penalty:
-     *     <ul>
-     *       <li>Same region (penalty 0 ms) → <b>70</b></li>
-     *       <li>Same continent (penalty 1–10 ms) → <b>50</b></li>
-     *       <li>Cross-continent nearby (penalty 11–30 ms, e.g. EU↔NA) → <b>20</b></li>
-     *       <li>Cross-continent far (penalty &gt; 30 ms, e.g. EU↔ASIA) → <b>0</b></li>
-     *     </ul>
-     *   </li>
-     *   <li><b>Latency similarity bonus (0 – 30 points)</b> — based on how close
-     *       the two players' base latencies are. A difference of 0 ms gives the
-     *       full 30 points; a difference ≥ 40 ms gives 0.
-     *       This rewards the algorithm for pairing players with similar connection
-     *       quality, e.g. matching 30 ms + 35 ms (bonus 26) is better than
-     *       10 ms + 50 ms (bonus 0).</li>
+     * <li><b>Region tier (0 – 70 points)</b> — based on cross-region penalty:
+     * <ul>
+     * <li>Same region (penalty 0 ms) → <b>70</b></li>
+     * <li>Same continent (penalty 1–10 ms) → <b>50</b></li>
+     * <li>Cross-continent nearby (penalty 11–30 ms) → <b>20</b></li>
+     * <li>Cross-continent far (penalty &gt; 30 ms) → <b>0</b></li>
+     * </ul>
+     * This ensures players are primarily matched within optimal geographic proximity.
+     * </li>
+     * <li><b>Latency quality (0 – 30 points)</b> — based on the <b>worst (maximum)
+     * latency</b> between the two players:
+     * <ul>
+     * <li>Lower maximum latency → higher score</li>
+     * <li>Higher maximum latency → lower score</li>
+     * </ul>
+     * The score is computed using a smooth linear function where:
+     * <ul>
+     * <li>0 ms → 30 points (ideal)</li>
+     * <li>100+ ms → 0 points (poor)</li>
+     * </ul>
+     * This reflects real gameplay conditions, where the worst connection
+     * dominates the experience.
+     * </li>
      * </ol>
      */
     public int latencyQuality() {
@@ -81,13 +92,20 @@ public record MatchResult(
         else if (penalty <= 30) regionScore = 20;   // cross-continent nearby
         else regionScore = 0;                          // cross-continent far
 
-        // Latency similarity bonus (0–30): how close are the two players' base latencies?
-        // Reference of 40 ms means any diff >= 40 ms scores 0 bonus.
-        int latencyDiff = Math.abs(queueRequest1.getLatencyMs() - queueRequest2.getLatencyMs());
-        int similarityBonus = (int) ((1.0 - Math.min(latencyDiff / 40.0, 1.0)) * 30);
+        // Latency quality (0–30) based on worst-case latency
+        int maxLatency = Math.max(queueRequest1.getLatencyMs(), queueRequest2.getLatencyMs());
 
-        return regionScore + similarityBonus;
+        int latencyScore;
+        if (maxLatency <= 30) {
+            latencyScore = 30;
+        } else {
+            double normalized = Math.min((maxLatency - 30) / 70.0, 1.0);
+            latencyScore = (int) ((1.0 - normalized) * 30);
+        }
+
+        return regionScore + latencyScore;
     }
+
 
     /**
      * Wait-time quality score [0 .. 100]. 100 = instant match (0 s), 0 = waited >= 60 s.
