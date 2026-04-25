@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Index;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -29,33 +30,34 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
-@Table( name = "queue_requests" )
-public class QueueRequestEntity
-{
-   @Id
-   @GeneratedValue( strategy = GenerationType.UUID )
-   private UUID id;
+@Table(name = "queue_requests", indexes = {
+        @Index(name = "idx_queue_gamemode_day", columnList = "game_mode_id, day_of_the_request")
+})
+public class QueueRequestEntity {
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
-   @ManyToOne( fetch = FetchType.LAZY )
-   @JoinColumn( name = "game_mode_id", nullable = false )
-   private GameModeEntity gameMode;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "game_mode_id", nullable = false)
+    private GameModeEntity gameMode;
 
-   @Column( nullable = false )
-   private int skillRating;
+    @Column(nullable = false)
+    private int skillRating;
 
-   @Column( nullable = false )
-   private String region;
+    @Column(nullable = false)
+    private String region;
 
-   @Column( nullable = false )
-   private int latencyMs;
+    @Column(nullable = false)
+    private int latencyMs;
 
-   @Column( nullable = false )
-   private int joinTimeSeconds;
+    @Column(nullable = false)
+    private int joinTimeSeconds;
 
-   @Column( nullable = false )
-   private int patienceSeconds;
+    @Column(nullable = false)
+    private int patienceSeconds;
 
-   @Column( nullable = false )
-   private LocalDate dayOfTheRequest;
+    @Column(nullable = false)
+    private LocalDate dayOfTheRequest;
 }
 
