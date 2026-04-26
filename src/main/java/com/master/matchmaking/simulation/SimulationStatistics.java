@@ -1,7 +1,6 @@
 package com.master.matchmaking.simulation;
 
 import com.master.matchmaking.model.entity.QueueRequestEntity;
-import com.master.matchmaking.model.simulation.AlgorithmWeights;
 import com.master.matchmaking.model.simulation.MatchResult;
 
 import java.util.*;

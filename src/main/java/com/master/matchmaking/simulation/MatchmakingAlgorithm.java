@@ -30,7 +30,6 @@ import java.util.List;
  * loose and is almost fully expanded from the start.
  */
 public interface MatchmakingAlgorithm {
-    // ── normalization ranges ──────────────────────────────────────────────
 
     /**
      * Full skill-rating range [0..1000].
@@ -49,7 +48,6 @@ public interface MatchmakingAlgorithm {
      */
     double DECAY_RATE = 60.0;
 
-    // ── abstract methods ──────────────────────────────────────────────────
 
     /**
      * @return human-readable name for reports
@@ -84,7 +82,6 @@ public interface MatchmakingAlgorithm {
      */
     List<MatchResult> findMatches(List<QueueEntry> queue, int currentSecond);
 
-    // ── shared tolerance helpers ──────────────────────────────────────────
 
     /**
      * Expanding skill-difference tolerance for a player who has waited {@code waitSec}.
@@ -123,7 +120,6 @@ public interface MatchmakingAlgorithm {
         return initial + extra;
     }
 
-    // ── shared utilities ──────────────────────────────────────────────────
 
     /**
      * Compute cross-region latency penalty (ms).
@@ -161,28 +157,6 @@ public interface MatchmakingAlgorithm {
     default int estimateLatency(QueueEntry a, QueueEntry b) {
         int avg = (a.getQueueRequest().getLatencyMs() + b.getQueueRequest().getLatencyMs()) / 2;
         return avg + crossRegionPenalty(a.getQueueRequest().getRegion(), b.getQueueRequest().getRegion());
-    }
-
-    /**
-     * Weighted composite score for a candidate pair.  Lower = better.
-     * <p>
-     * Used by algorithms that need to pick the "best" pair among several eligible
-     * candidates (e.g. StabilityAware). Components are normalized to [0..1].
-     */
-    default double compositeCost(QueueEntry a, QueueEntry b, int currentSecond) {
-        AlgorithmWeights w = weights();
-
-        double skillNorm = Math.min(
-                Math.abs(a.getQueueRequest().getSkillRating() - b.getQueueRequest().getSkillRating()) / (double) MAX_SKILL_RANGE, 1.0);
-
-        double latencyNorm = Math.min(estimateLatency(a, b) / (double) MAX_LATENCY_RANGE, 1.0);
-
-        double avgWait = (a.waitTimeAt(currentSecond) + b.waitTimeAt(currentSecond)) / 2.0;
-        double waitPenalty = 1.0 - Math.min(avgWait / 300.0, 1.0);
-
-        return w.weightSkill() * skillNorm
-                + w.weightLatency() * latencyNorm
-                + w.weightWaitTime() * waitPenalty;
     }
 
     /**

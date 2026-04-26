@@ -116,7 +116,6 @@ public class SimulationReportService {
             case SKILL_BASED -> new SkillBasedAlgorithm(weights);
             case LATENCY_BASED -> new LatencyBasedAlgorithm(weights);
             case SHORT_WAIT_TIME -> new ShortWaitTimeAlgorithm(weights);
-            case STABILITY_AWARE -> new StabilityAwareAlgorithm(weights);
         };
     }
 

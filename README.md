@@ -32,7 +32,6 @@ Each algorithm constrains its weights to a specific interval. The **dominant fac
 | **Skill-Based (SBMM)** | 50 % – 80 % | 10 % – 30 % | 10 % – 30 % | 70 / 15 / 15 |
 | **Latency-Based** | 10 % – 30 % | 50 % – 80 % | 10 % – 30 % | 15 / 70 / 15 |
 | **Short Wait-Time** | 10 % – 40 % | 10 % – 40 % | 50 % – 80 % | 20 / 20 / 60 |
-| **Stability-Aware** | 20 % – 50 % | 20 % – 50 % | 20 % – 50 % | 34 / 33 / 33 |
 
 ### How the Weights Influence the Simulation
 

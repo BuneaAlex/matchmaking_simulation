@@ -44,9 +44,6 @@ public class DataInitializer
          MatchmakingAlgorithmEntity shortWait = findOrCreate( algorithmRepo,
                AlgorithmType.SHORT_WAIT_TIME, 20, 20, 60, 10, 40, 10, 40, 50, 80 );
 
-         MatchmakingAlgorithmEntity stability = findOrCreate( algorithmRepo,
-               AlgorithmType.STABILITY_AWARE, 34, 33, 33, 20, 50, 20, 50, 20, 50 );
-
          // ── Game Modes ───────────────────────────────────────────────
          findOrCreateMode( gameModeRepo, GameModeType.RANKED, sbmm );
          findOrCreateMode( gameModeRepo, GameModeType.CASUAL, shortWait );
